@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import cron from 'node-cron';
+// import cron from 'node-cron'; // Disabled for Vercel
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import dotenv from 'dotenv';
@@ -22,60 +22,64 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Connect to DB immediately
+connectDB().catch(err => console.error("DB Connect Error:", err));
+
 // Middleware
-// CORS configuration - allow frontend URLs
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
-  process.env.FRONTEND_URL,
-  // Add your deployed frontend URLs here
-  // 'https://your-frontend.vercel.app',
-  // 'https://your-frontend.netlify.app',
-].filter(Boolean); // Remove undefined values
+  process.env.FRONTEND_URL, 
+  // 'https://your-frontend-project.vercel.app' // Hardcode if env fails
+].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all origins for now - restrict in production
+      callback(null, true); // Permissive for testing, restrict later
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Swagger configuration
+// Swagger
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
     info: {
       title: 'Doctor Appointment Booking API',
       version: '1.0.0',
-      description: 'API for managing doctor appointments with concurrency control',
     },
     servers: [
-      {
-        url: `http://localhost:${PORT}`,
-        description: 'Development server',
-      },
+      { url: process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:${PORT}` }
     ],
   },
   apis: [join(__dirname, './routes/*.js')],
 };
-
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Routes
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', database: 'PostgreSQL', time: new Date() });
+});
+
+// Manual Cron Trigger
+app.get('/api/cron/expire-bookings', async (req, res) => {
+  try {
+    await expirePendingBookings();
+    res.json({ status: 'success' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.use('/api/auth', authRoutes);
@@ -83,34 +87,13 @@ app.use('/api/doctors', doctorRoutes);
 app.use('/api/slots', slotRoutes);
 app.use('/api/bookings', bookingRoutes);
 
-// Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Start booking expiry job (runs every 30 seconds)
-cron.schedule('*/30 * * * * *', async () => {
-  try {
-    await expirePendingBookings();
-  } catch (error) {
-    console.error('Error in booking expiry cron job:', error);
-  }
-});
-
-// Connect to PostgreSQL and start server
-const startServer = async () => {
-  try {
-    await connectDB();
-    
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-      console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
-    });
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
-};
-
-startServer();
+// Only listen locally
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running locally on http://localhost:${PORT}`);
+  });
+}
 
 export default app;
-
