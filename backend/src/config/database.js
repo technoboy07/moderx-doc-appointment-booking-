@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Vercel/Supabase provides 'POSTGRES_URL'
-const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL || process.env.DATABASE_URL;
 
 if (!connectionString) {
   console.error("❌ No database connection string found! Check Environment Variables.");
@@ -22,7 +22,7 @@ if (!connectionString) {
 // Old: const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
 
 // New: Prioritize the NON_POOLING URL (Port 5432)
-const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL || process.env.DATABASE_URL;
+
 
 const pool = new Pool({
   connectionString,
