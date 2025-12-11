@@ -21,7 +21,9 @@ if (!connectionString) {
 const pool = new Pool({
   connectionString,
   // Supabase requires SSL. We allow self-signed certs (common in cloud)
-  ssl: rejectUnauthorized: false,
+  ssl: {
+    rejectUnauthorized: false 
+  },
   max: 5, // Limit connections for serverless
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
