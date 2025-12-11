@@ -1,0 +1,172 @@
+{
+  "info": {
+    "name": "Doctor Appointment Booking API",
+    "description": "API collection for Doctor Appointment Booking System\n\nNote: All IDs are MongoDB ObjectIds (24-character hex strings). Replace example IDs with actual ObjectIds from your database.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Doctors",
+      "item": [
+        {
+          "name": "Create Doctor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dr. Jane Doe\",\n  \"specialization\": \"Cardiology\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/doctors",
+              "host": ["{{base_url}}"],
+              "path": ["api", "doctors"]
+            }
+          }
+        },
+        {
+          "name": "Get All Doctors",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/doctors",
+              "host": ["{{base_url}}"],
+              "path": ["api", "doctors"]
+            }
+          }
+        },
+        {
+          "name": "Get Doctor by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/doctors/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "doctors", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slots",
+      "item": [
+        {
+          "name": "Create Slot",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"doctorId\": 1,\n  \"startTime\": \"2024-12-25T10:00:00Z\",\n  \"totalSeats\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/slots",
+              "host": ["{{base_url}}"],
+              "path": ["api", "slots"]
+            }
+          }
+        },
+        {
+          "name": "Get All Available Slots",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/slots",
+              "host": ["{{base_url}}"],
+              "path": ["api", "slots"]
+            }
+          }
+        },
+        {
+          "name": "Get Slot by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/slots/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "slots", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "Book Appointment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slotId\": 1,\n  \"userName\": \"John Doe\",\n  \"userEmail\": \"john@example.com\",\n  \"seatsBooked\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/bookings",
+              "host": ["{{base_url}}"],
+              "path": ["api", "bookings"]
+            }
+          }
+        },
+        {
+          "name": "Get Booking by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/bookings/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "bookings", "1"]
+            }
+          }
+        },
+        {
+          "name": "Get Bookings by Slot",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/bookings/slot/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "bookings", "slot", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ]
+}
+

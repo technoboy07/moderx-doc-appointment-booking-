@@ -1,0 +1,126 @@
+.admin-dashboard h1 {
+  margin-bottom: 2rem;
+  color: var(--text-primary);
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid var(--border-color);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.admin-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-tabs button {
+  background: none;
+  border: none;
+  padding: 1rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-secondary);
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.admin-tabs button:hover {
+  color: var(--text-primary);
+  background-color: var(--background-secondary);
+}
+
+.admin-tabs button.active {
+  color: var(--primary-blue);
+  border-bottom-color: var(--primary-blue);
+  font-weight: 600;
+}
+
+.admin-content {
+  background: white;
+  border-radius: var(--radius-xl);
+  padding: 2.5rem;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+}
+
+.admin-content h2 {
+  margin-bottom: 2rem;
+  color: var(--text-primary);
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.doctors-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.doctor-card {
+  background: var(--background-secondary);
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s;
+}
+
+.doctor-card:hover {
+  background: white;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.doctor-card h3 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.doctor-card .specialization {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.empty-message {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 3rem;
+  font-size: 1.05rem;
+}
+
+@media (max-width: 768px) {
+  .admin-tabs {
+    flex-direction: column;
+    border-bottom: none;
+  }
+
+  .admin-tabs button {
+    text-align: left;
+    border-bottom: none;
+    border-left: 3px solid transparent;
+  }
+
+  .admin-tabs button.active {
+    border-left-color: var(--primary-blue);
+    border-bottom-color: transparent;
+  }
+
+  .admin-content {
+    padding: 1.5rem;
+  }
+
+  .doctors-list {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,100 @@
+.slots-list {
+  overflow-x: auto;
+}
+
+.slots-list table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.slots-list thead {
+  background: linear-gradient(135deg, var(--primary-blue), var(--primary-blue-dark));
+  color: white;
+}
+
+.slots-list th {
+  padding: 1.25rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.slots-list td {
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.slots-list tbody tr {
+  transition: background-color 0.2s;
+}
+
+.slots-list tbody tr:hover {
+  background-color: var(--background-secondary);
+}
+
+.slots-list tbody tr.past {
+  opacity: 0.6;
+  background-color: var(--background-tertiary);
+}
+
+.time-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.time-cell .date {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.time-cell .time {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.375rem 0.875rem;
+  border-radius: var(--radius-lg);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-badge.available {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #065f46;
+}
+
+.status-badge.full {
+  background: linear-gradient(135deg, #fee2e2, #fecaca);
+  color: #991b1b;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-secondary);
+}
+
+.empty-state p {
+  margin: 0.5rem 0;
+}
+
+@media (max-width: 768px) {
+  .slots-list {
+    font-size: 0.85rem;
+  }
+
+  .slots-list th,
+  .slots-list td {
+    padding: 0.875rem 0.5rem;
+  }
+}

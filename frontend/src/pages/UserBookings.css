@@ -1,0 +1,68 @@
+.user-bookings {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.user-bookings h1 {
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.user-info {
+  margin-bottom: 2rem;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  border: 1px solid var(--primary-blue-light);
+}
+
+.user-info strong {
+  color: var(--primary-blue-dark);
+  font-weight: 600;
+}
+
+.bookings-header {
+  margin-bottom: 1.5rem;
+}
+
+.bookings-header h2 {
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.bookings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 1.5rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: white;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+}
+
+.empty-state p {
+  margin: 0.75rem 0;
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+}
+
+@media (max-width: 768px) {
+  .user-bookings h1 {
+    font-size: 2rem;
+  }
+
+  .bookings-grid {
+    grid-template-columns: 1fr;
+  }
+}
