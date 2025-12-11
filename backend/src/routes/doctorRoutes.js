@@ -67,7 +67,7 @@ router.get('/', getAllDoctors);
  *         required: true
  *         schema:
  *           type: string
- *           format: objectid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Doctor details

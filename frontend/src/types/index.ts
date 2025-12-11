@@ -1,5 +1,5 @@
 export interface Doctor {
-  id: string; // MongoDB ObjectId
+  id: string; // PostgreSQL integer ID (as string)
   name: string;
   specialization: string | null;
   created_at: string;
@@ -7,8 +7,8 @@ export interface Doctor {
 }
 
 export interface AppointmentSlot {
-  id: string; // MongoDB ObjectId
-  doctor_id: string; // MongoDB ObjectId
+  id: string; // PostgreSQL integer ID (as string)
+  doctor_id: string; // PostgreSQL integer ID (as string)
   doctor_name: string;
   specialization: string | null;
   start_time: string;
@@ -19,8 +19,8 @@ export interface AppointmentSlot {
 }
 
 export interface Booking {
-  id: string; // MongoDB ObjectId
-  slot_id: string; // MongoDB ObjectId
+  id: string; // PostgreSQL integer ID (as string)
+  slot_id: string; // PostgreSQL integer ID (as string)
   user_name: string;
   user_email: string;
   seats_booked: number;
@@ -29,7 +29,7 @@ export interface Booking {
   expires_at: string | null;
   updated_at: string;
   start_time?: string;
-  doctor_id?: string; // MongoDB ObjectId
+  doctor_id?: string; // PostgreSQL integer ID (as string)
   doctor_name?: string;
 }
 

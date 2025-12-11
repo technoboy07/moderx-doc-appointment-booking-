@@ -1,17 +1,19 @@
-import Doctor from '../models/Doctor.js';
+import * as DoctorModel from '../models/Doctor.js';
 
 const createDoctor = async (req, res, next) => {
   try {
     const { name, specialization } = req.body;
-    const doctor = new Doctor({
-      name,
-      specialization: specialization || null
-    });
-    await doctor.save();
+    const doctor = await DoctorModel.createDoctor(name, specialization || null);
     
     res.status(201).json({
       success: true,
-      data: doctor
+      data: {
+        id: doctor.id.toString(),
+        name: doctor.name,
+        specialization: doctor.specialization,
+        created_at: doctor.created_at,
+        updated_at: doctor.updated_at
+      }
     });
   } catch (error) {
     next(error);
@@ -20,12 +22,20 @@ const createDoctor = async (req, res, next) => {
 
 const getAllDoctors = async (req, res, next) => {
   try {
-    const doctors = await Doctor.find().sort({ createdAt: -1 });
+    const doctors = await DoctorModel.getAllDoctors();
+    
+    const formattedDoctors = doctors.map(doctor => ({
+      id: doctor.id.toString(),
+      name: doctor.name,
+      specialization: doctor.specialization,
+      created_at: doctor.created_at,
+      updated_at: doctor.updated_at
+    }));
     
     res.json({
       success: true,
-      count: doctors.length,
-      data: doctors
+      count: formattedDoctors.length,
+      data: formattedDoctors
     });
   } catch (error) {
     next(error);
@@ -35,7 +45,7 @@ const getAllDoctors = async (req, res, next) => {
 const getDoctorById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const doctor = await Doctor.findById(id);
+    const doctor = await DoctorModel.getDoctorById(parseInt(id));
     
     if (!doctor) {
       return res.status(404).json({
@@ -46,11 +56,16 @@ const getDoctorById = async (req, res, next) => {
     
     res.json({
       success: true,
-      data: doctor
+      data: {
+        id: doctor.id.toString(),
+        name: doctor.name,
+        specialization: doctor.specialization,
+        created_at: doctor.created_at,
+        updated_at: doctor.updated_at
+      }
     });
   } catch (error) {
-    // Handle invalid ObjectId format
-    if (error.name === 'CastError') {
+    if (error.code === '22P02') { // Invalid input syntax for integer
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'

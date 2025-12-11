@@ -1,25 +1,22 @@
-import mongoose from 'mongoose';
-import Booking from '../models/Booking.js';
-import AppointmentSlot from '../models/AppointmentSlot.js';
+import { pool } from '../config/database.js';
+import * as BookingModel from '../models/Booking.js';
+import * as SlotModel from '../models/AppointmentSlot.js';
 
 /**
  * Job to expire pending bookings that have exceeded the 2-minute expiry time
  * This should be run periodically (e.g., every 30 seconds)
  */
 async function expirePendingBookings() {
-  const session = await mongoose.startSession();
+  const client = await pool.connect();
   
   try {
-    await session.startTransaction();
+    await client.query('BEGIN');
     
     // Find expired pending bookings
-    const expiredBookings = await Booking.find({
-      status: 'PENDING',
-      expires_at: { $lt: new Date() }
-    }).session(session);
+    const expiredBookings = await BookingModel.getExpiredPendingBookings(client);
     
     if (expiredBookings.length === 0) {
-      await session.abortTransaction();
+      await client.query('ROLLBACK');
       return { expired: 0 };
     }
     
@@ -27,7 +24,7 @@ async function expirePendingBookings() {
     const slotUpdates = {};
     
     expiredBookings.forEach(booking => {
-      const slotId = booking.slot_id.toString();
+      const slotId = booking.slot_id;
       if (!slotUpdates[slotId]) {
         slotUpdates[slotId] = 0;
       }
@@ -36,30 +33,27 @@ async function expirePendingBookings() {
     
     // Release seats for each slot atomically
     for (const [slotId, seatsToRelease] of Object.entries(slotUpdates)) {
-      await AppointmentSlot.findByIdAndUpdate(
-        slotId,
-        { $inc: { available_seats: seatsToRelease } },
-        { session }
+      await SlotModel.incrementAvailableSeats(
+        parseInt(slotId),
+        seatsToRelease,
+        client
       );
     }
     
     // Mark bookings as FAILED
-    await Booking.updateMany(
-      { _id: { $in: expiredBookings.map(b => b._id) } },
-      { status: 'FAILED' },
-      { session }
-    );
+    const bookingIds = expiredBookings.map(b => b.id);
+    await BookingModel.updateBookingStatus(bookingIds, 'FAILED', client);
     
-    await session.commitTransaction();
+    await client.query('COMMIT');
     
     console.log(`✅ Expired ${expiredBookings.length} pending booking(s)`);
     return { expired: expiredBookings.length };
   } catch (error) {
-    await session.abortTransaction();
+    await client.query('ROLLBACK');
     console.error('❌ Error expiring bookings:', error);
     throw error;
   } finally {
-    await session.endSession();
+    client.release();
   }
 }
 

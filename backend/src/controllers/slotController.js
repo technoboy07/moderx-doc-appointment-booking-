@@ -1,12 +1,12 @@
-import AppointmentSlot from '../models/AppointmentSlot.js';
-import Doctor from '../models/Doctor.js';
+import * as SlotModel from '../models/AppointmentSlot.js';
+import * as DoctorModel from '../models/Doctor.js';
 
 const createSlot = async (req, res, next) => {
   try {
     const { doctorId, startTime, totalSeats } = req.body;
 
     // Verify doctor exists
-    const doctor = await Doctor.findById(doctorId);
+    const doctor = await DoctorModel.getDoctorById(parseInt(doctorId));
     if (!doctor) {
       return res.status(404).json({
         success: false,
@@ -23,30 +23,33 @@ const createSlot = async (req, res, next) => {
       });
     }
 
-    const slot = new AppointmentSlot({
-      doctor_id: doctorId,
-      start_time: startDate,
-      total_seats: totalSeats || 1,
-      available_seats: totalSeats || 1
-    });
+    const totalSeatsValue = totalSeats || 1;
+    const slot = await SlotModel.createSlot(
+      parseInt(doctorId),
+      startDate,
+      totalSeatsValue,
+      totalSeatsValue
+    );
     
-    await slot.save();
-    
-    // Populate doctor info for response
-    await slot.populate('doctor_id', 'name specialization');
-    
-    // Transform response to match expected format
-    const slotData = slot.toObject();
-    slotData.doctor_name = slotData.doctor_id.name;
-    slotData.specialization = slotData.doctor_id.specialization;
-    slotData.doctor_id = slot.doctor_id._id;
+    // Format response
+    const slotData = {
+      id: slot.id.toString(),
+      doctor_id: slot.doctor_id.toString(),
+      doctor_name: doctor.name,
+      specialization: doctor.specialization,
+      start_time: slot.start_time,
+      total_seats: slot.total_seats,
+      available_seats: slot.available_seats,
+      created_at: slot.created_at,
+      updated_at: slot.updated_at
+    };
     
     res.status(201).json({
       success: true,
       data: slotData
     });
   } catch (error) {
-    if (error.name === 'CastError') {
+    if (error.code === '22P02') { // Invalid input syntax
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'
@@ -58,23 +61,20 @@ const createSlot = async (req, res, next) => {
 
 const getAllSlots = async (req, res, next) => {
   try {
-    const slots = await AppointmentSlot.find({
-      available_seats: { $gt: 0 },
-      start_time: { $gt: new Date() }
-    })
-    .populate('doctor_id', 'name specialization')
-    .sort({ start_time: 1 });
+    const slots = await SlotModel.getAllSlots();
     
     // Transform response to match expected format
-    const transformedSlots = slots.map(slot => {
-      const slotObj = slot.toObject();
-      return {
-        ...slotObj,
-        doctor_name: slotObj.doctor_id.name,
-        specialization: slotObj.doctor_id.specialization,
-        doctor_id: slotObj.doctor_id._id
-      };
-    });
+    const transformedSlots = slots.map(slot => ({
+      id: slot.id.toString(),
+      doctor_id: slot.doctor_id.toString(),
+      doctor_name: slot.doctor_name,
+      specialization: slot.specialization,
+      start_time: slot.start_time,
+      total_seats: slot.total_seats,
+      available_seats: slot.available_seats,
+      created_at: slot.created_at,
+      updated_at: slot.updated_at
+    }));
     
     res.json({
       success: true,
@@ -89,8 +89,7 @@ const getAllSlots = async (req, res, next) => {
 const getSlotById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const slot = await AppointmentSlot.findById(id)
-      .populate('doctor_id', 'name specialization');
+    const slot = await SlotModel.getSlotById(parseInt(id));
     
     if (!slot) {
       return res.status(404).json({
@@ -100,17 +99,24 @@ const getSlotById = async (req, res, next) => {
     }
     
     // Transform response to match expected format
-    const slotObj = slot.toObject();
-    slotObj.doctor_name = slotObj.doctor_id.name;
-    slotObj.specialization = slotObj.doctor_id.specialization;
-    slotObj.doctor_id = slotObj.doctor_id._id;
+    const slotObj = {
+      id: slot.id.toString(),
+      doctor_id: slot.doctor_id.toString(),
+      doctor_name: slot.doctor_name,
+      specialization: slot.specialization,
+      start_time: slot.start_time,
+      total_seats: slot.total_seats,
+      available_seats: slot.available_seats,
+      created_at: slot.created_at,
+      updated_at: slot.updated_at
+    };
     
     res.json({
       success: true,
       data: slotObj
     });
   } catch (error) {
-    if (error.name === 'CastError') {
+    if (error.code === '22P02') { // Invalid input syntax
       return res.status(404).json({
         success: false,
         message: 'Slot not found'

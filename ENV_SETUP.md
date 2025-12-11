@@ -9,8 +9,12 @@ Create a file `backend/.env` with the following content:
 PORT=3000
 NODE_ENV=production
 
-# Database Configuration (MongoDB Atlas)
-MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/doctor_appointments?retryWrites=true&w=majority
+# Database Configuration (PostgreSQL)
+# Format: postgresql://username:password@host:port/database
+# For local: postgresql://postgres:password@localhost:5432/doctor_appointments
+# For production (Render/Railway): Use DATABASE_URL provided by hosting platform
+DATABASE_URL=postgresql://username:password@localhost:5432/doctor_appointments
+POSTGRESQL_URI=postgresql://username:password@localhost:5432/doctor_appointments
 
 # JWT Secret (Generate a strong random string)
 # Run: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -24,7 +28,8 @@ FRONTEND_URL=https://your-frontend.vercel.app
 ```env
 PORT=3000
 NODE_ENV=development
-MONGODB_URI=mongodb://localhost:27017/doctor_appointments
+DATABASE_URL=postgresql://postgres:password@localhost:5432/doctor_appointments
+POSTGRESQL_URI=postgresql://postgres:password@localhost:5432/doctor_appointments
 JWT_SECRET=your-secret-key-change-in-production
 ```
 
@@ -56,20 +61,23 @@ Copy the output and use it as your `JWT_SECRET`.
 
 1. **Never commit `.env` files** - They are already in `.gitignore`
 2. **Use different secrets for development and production**
-3. **Keep your MongoDB credentials secure**
+3. **Keep your PostgreSQL credentials secure**
 4. **Update `FRONTEND_URL` after deploying frontend**
 5. **Update `REACT_APP_API_URL` after deploying backend**
+6. **PostgreSQL connection string format**: `postgresql://username:password@host:port/database`
 
 ## Setting Environment Variables on Hosting Platforms
 
 ### Render.com (Backend)
 1. Go to your service → Environment tab
 2. Add each variable:
-   - `MONGODB_URI`
+   - `DATABASE_URL` (provided automatically if using Render PostgreSQL, or set manually)
+   - `POSTGRESQL_URI` (same as DATABASE_URL, for compatibility)
    - `JWT_SECRET`
    - `NODE_ENV=production`
-   - `PORT=10000`
    - `FRONTEND_URL` (add after frontend deploy)
+   
+**Note**: If using Render's PostgreSQL service, `DATABASE_URL` is automatically set. Otherwise, provide your PostgreSQL connection string.
 
 ### Vercel (Frontend)
 1. Go to Project → Settings → Environment Variables

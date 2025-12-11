@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Doctor Appointment Booking API",
-    "description": "API collection for Doctor Appointment Booking System\n\nNote: All IDs are MongoDB ObjectIds (24-character hex strings). Replace example IDs with actual ObjectIds from your database.",
+    "description": "API collection for Doctor Appointment Booking System\n\nNote: All IDs are PostgreSQL integer IDs (as strings). Replace example IDs with actual integer IDs from your database.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [

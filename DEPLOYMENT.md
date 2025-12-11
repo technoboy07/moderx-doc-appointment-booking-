@@ -3,44 +3,55 @@
 ## 📋 Prerequisites
 
 - GitHub account
-- MongoDB Atlas account (for cloud database) OR MongoDB instance
-- Render.com account (for backend) OR Railway/Railway/AWS
+- PostgreSQL database (Render PostgreSQL, Railway PostgreSQL, Supabase, or local PostgreSQL)
+- Render.com account (for backend) OR Railway/AWS
 - Vercel account (for frontend) OR Netlify
 
-## 🗄️ Step 1: Database Setup (MongoDB Atlas)
+## 🗄️ Step 1: Database Setup (PostgreSQL)
 
-### 1.1 Create MongoDB Atlas Cluster
+### Option A: Render PostgreSQL (Recommended - Free Tier Available)
 
-1. Go to [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
-2. Sign up/Login
-3. Create a new cluster (Free tier M0 is sufficient)
-4. Wait for cluster to be created (~3-5 minutes)
+1. Go to [Render Dashboard](https://dashboard.render.com)
+2. Click **New +** → **PostgreSQL**
+3. Configure:
+   - **Name**: `doctor-appointment-db`
+   - **Database**: `doctor_appointments`
+   - **User**: Auto-generated
+   - **Region**: Choose closest to your backend
+4. Click **Create Database**
+5. Wait for database to be created (~2-3 minutes)
+6. Copy the **Internal Database URL** (for Render services) or **External Database URL** (for external access)
+7. Format: `postgresql://user:password@host:5432/database_name`
 
-### 1.2 Configure Database Access
+### Option B: Railway PostgreSQL
 
-1. Go to **Database Access** → **Add New Database User**
-2. Create a user with username/password
-3. Set privileges to **Read and write to any database**
-4. Save credentials securely
+1. Go to [Railway](https://railway.app)
+2. Click **New Project** → **Provision PostgreSQL**
+3. Database will be created automatically
+4. Copy the `DATABASE_URL` from the Variables tab
 
-### 1.3 Configure Network Access
+### Option C: Supabase (Free Tier Available)
 
-1. Go to **Network Access** → **Add IP Address**
-2. Click **Allow Access from Anywhere** (0.0.0.0/0) for development
-3. For production, add specific IPs
+1. Go to [Supabase](https://supabase.com)
+2. Create a new project
+3. Go to **Settings** → **Database**
+4. Copy the connection string (URI format)
 
-### 1.4 Get Connection String
+### Option D: Local PostgreSQL
 
-1. Go to **Database** → **Connect**
-2. Choose **Connect your application**
-3. Copy the connection string
-4. Replace `<password>` with your database user password
-5. Replace `<dbname>` with `doctor_appointments`
-6. Example: `mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/doctor_appointments?retryWrites=true&w=majority`
+1. Install PostgreSQL locally
+2. Create database: `createdb doctor_appointments`
+3. Connection string: `postgresql://postgres:password@localhost:5432/doctor_appointments`
 
-### 1.5 Initialize Replica Set (Required for Transactions)
+### 1.1 Initialize Database Schema
 
-MongoDB Atlas clusters already run as replica sets, so no additional setup needed!
+The schema will be automatically created when the backend starts. Alternatively, you can run:
+
+```bash
+psql -d doctor_appointments -f backend/src/database/schema.sql
+```
+
+Or the backend will automatically run the schema.sql file on first connection.
 
 ## 🚀 Step 2: Backend Deployment (Render.com)
 
@@ -69,11 +80,13 @@ Go to **Environment** tab and add:
 
 ```
 NODE_ENV=production
-PORT=10000
-MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/doctor_appointments?retryWrites=true&w=majority
+DATABASE_URL=postgresql://user:password@host:5432/doctor_appointments
+POSTGRESQL_URI=postgresql://user:password@host:5432/doctor_appointments
 JWT_SECRET=generate-a-random-strong-secret-key-here-minimum-32-characters
 FRONTEND_URL=https://your-frontend.vercel.app
 ```
+
+**Note**: If using Render PostgreSQL service, `DATABASE_URL` is automatically set. Otherwise, provide your PostgreSQL connection string.
 
 **Generate JWT_SECRET:**
 ```bash
@@ -96,9 +109,9 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ### 2.6 Seed Database (Optional)
 
 You can seed the database by:
-1. Running the seed script locally pointing to Atlas
-2. Or creating a temporary admin endpoint (not recommended for production)
-3. Or using MongoDB Compass to manually add data
+1. Running the seed script locally: `npm run seed` (with DATABASE_URL set)
+2. Or connecting via psql and inserting data manually
+3. Or using pgAdmin to add data
 
 ## 🎨 Step 3: Frontend Deployment (Vercel)
 
@@ -248,9 +261,10 @@ After getting your frontend URL, update the backend CORS configuration:
 - Check backend logs
 
 **Problem**: Database connection failed
-- Verify MongoDB Atlas network access
-- Check connection string format
+- Verify PostgreSQL is running and accessible
+- Check connection string format: `postgresql://user:password@host:port/database`
 - Verify database user credentials
+- Check if SSL is required (add `?ssl=true` to connection string for cloud providers)
 
 ### Frontend Issues
 
@@ -269,6 +283,6 @@ After getting your frontend URL, update the backend CORS configuration:
 
 - [Render Documentation](https://render.com/docs)
 - [Vercel Documentation](https://vercel.com/docs)
-- [MongoDB Atlas Documentation](https://docs.atlas.mongodb.com)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [React Deployment Guide](https://create-react-app.dev/docs/deployment/)
 

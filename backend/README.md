@@ -6,8 +6,8 @@ A robust, scalable backend API for managing doctor appointments with advanced co
 
 - ✅ Doctor and appointment slot management
 - ✅ Concurrent booking with race condition prevention
-- ✅ Atomic operations with MongoDB transactions
-- ✅ Race condition prevention using findOneAndUpdate
+- ✅ Atomic operations with PostgreSQL transactions
+- ✅ Race condition prevention using SELECT FOR UPDATE
 - ✅ Automatic booking expiry (PENDING → FAILED after 2 minutes)
 - ✅ Comprehensive API documentation (Swagger)
 - ✅ Input validation and error handling
@@ -16,17 +16,15 @@ A robust, scalable backend API for managing doctor appointments with advanced co
 
 - **Node.js** - Runtime environment
 - **Express.js** - Web framework
-- **MongoDB** - NoSQL database
-- **Mongoose** - MongoDB object modeling
+- **PostgreSQL** - Relational database
+- **pg** - PostgreSQL client for Node.js
 - **node-cron** - Scheduled jobs for booking expiry
 
 ## Prerequisites
 
 - Node.js (v14 or higher)
-- MongoDB (v4.4 or higher) - MongoDB must be running as a replica set for transactions
+- PostgreSQL (v12 or higher)
 - npm or yarn
-
-**Windows Users:** See [WINDOWS_SETUP.md](../WINDOWS_SETUP.md) for detailed Windows-specific setup instructions.
 
 ## Setup Instructions
 
@@ -43,45 +41,50 @@ Create a `.env` file in the `backend` directory:
 
 ```env
 PORT=3000
-MONGODB_URI=mongodb://localhost:27017/doctor_appointments
+DATABASE_URL=postgresql://postgres:password@localhost:5432/doctor_appointments
+POSTGRESQL_URI=postgresql://postgres:password@localhost:5432/doctor_appointments
 NODE_ENV=development
+JWT_SECRET=your-secret-key-change-in-production
 ```
 
-### 3. Start MongoDB
+### 3. Start PostgreSQL
 
-Make sure MongoDB is running on your system:
+Make sure PostgreSQL is running on your system:
 
-**Windows Users:** See [WINDOWS_SETUP.md](../WINDOWS_SETUP.md) for detailed Windows-specific instructions.
+**Windows:**
+- Install PostgreSQL from https://www.postgresql.org/download/windows/
+- Start PostgreSQL service
+- Create database: `createdb doctor_appointments`
 
 **Linux/macOS:**
 ```bash
 # On macOS with Homebrew
-brew services start mongodb-community
+brew services start postgresql
 
 # On Linux
-sudo systemctl start mongod
+sudo systemctl start postgresql
+
+# Create database
+createdb doctor_appointments
 ```
 
-**Important**: For transactions to work, MongoDB must be running as a replica set (even single-node). To set up a single-node replica set:
+### 4. Initialize Database Schema
+
+The schema will be automatically created when the backend starts. Alternatively, you can run:
 
 ```bash
-# Start MongoDB with replica set
-mongod --replSet rs0 --port 27017
-
-# In another terminal, initialize replica set
-mongosh
-> rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})
+psql -d doctor_appointments -f src/database/schema.sql
 ```
 
-### 4. Seed Database (Optional)
+### 5. Seed Database (Optional)
 
 ```bash
 npm run seed
 ```
 
-This will create a sample doctor for testing.
+This will create sample doctors for testing.
 
-### 5. Start the Server
+### 6. Start the Server
 
 ```bash
 # Development mode (with auto-reload)
@@ -102,13 +105,13 @@ Once the server is running, visit:
 
 ### Doctors
 
-- `POST /api/doctors` - Create a new doctor
+- `POST /api/doctors` - Create a new doctor (Admin only)
 - `GET /api/doctors` - Get all doctors
 - `GET /api/doctors/:id` - Get doctor by ID
 
 ### Appointment Slots
 
-- `POST /api/slots` - Create a new appointment slot
+- `POST /api/slots` - Create a new appointment slot (Admin only)
 - `GET /api/slots` - Get all available slots
 - `GET /api/slots/:id` - Get slot by ID
 
@@ -117,6 +120,14 @@ Once the server is running, visit:
 - `POST /api/bookings` - Book an appointment
 - `GET /api/bookings/:id` - Get booking by ID
 - `GET /api/bookings/slot/:slotId` - Get all bookings for a slot
+- `GET /api/bookings/my-bookings` - Get user's bookings (Authenticated)
+- `GET /api/bookings` - Get all bookings (Admin only)
+- `DELETE /api/bookings/:id` - Cancel a booking (Authenticated, own bookings only)
+
+### Authentication
+
+- `POST /api/auth/login` - Login user
+- `GET /api/auth/me` - Get current user info (Authenticated)
 
 ## Example API Calls
 
@@ -125,6 +136,7 @@ Once the server is running, visit:
 ```bash
 curl -X POST http://localhost:3000/api/doctors \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
     "name": "Dr. Jane Doe",
     "specialization": "Cardiology"
@@ -136,6 +148,7 @@ curl -X POST http://localhost:3000/api/doctors \
 ```bash
 curl -X POST http://localhost:3000/api/slots \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
     "doctorId": 1,
     "startTime": "2024-12-25T10:00:00Z",
@@ -160,10 +173,11 @@ curl -X POST http://localhost:3000/api/bookings \
 
 The system uses multiple strategies to prevent overbooking:
 
-1. **Atomic Operations**: `findOneAndUpdate` with `$inc` operator ensures atomic seat decrement
-2. **MongoDB Transactions**: All booking operations are wrapped in transactions for ACID guarantees
-3. **Conditional Updates**: Seat availability is checked and updated in a single atomic operation
+1. **Row-Level Locking**: `SELECT FOR UPDATE` locks the slot row during booking
+2. **PostgreSQL Transactions**: All booking operations are wrapped in transactions for ACID guarantees
+3. **Atomic Updates**: Seat availability is checked and updated in a single atomic operation within a transaction
 4. **Query Conditions**: Only slots with sufficient available seats can be updated
+5. **Isolation Levels**: PostgreSQL's default isolation level ensures data consistency
 
 ## Booking Expiry
 
@@ -174,13 +188,13 @@ Pending bookings automatically expire after 2 minutes:
 
 ## Database Schema
 
-MongoDB collections with Mongoose schemas:
+PostgreSQL tables:
 
-- **doctors**: Doctor information
+- **doctors**: Doctor information (id, name, specialization, timestamps)
 - **appointment_slots**: Available appointment slots with seat counts (references doctors)
 - **bookings**: User bookings with status (PENDING, CONFIRMED, FAILED) (references appointment_slots)
 
-All collections use MongoDB ObjectIds as primary keys and include timestamps (createdAt, updatedAt).
+All tables use SERIAL (auto-incrementing integer) primary keys and include timestamps (created_at, updated_at).
 
 ## Testing Concurrency
 
@@ -188,7 +202,7 @@ To test concurrent bookings, you can use tools like Apache Bench or write a simp
 
 ```javascript
 // Example: Concurrent booking test
-const axios = require('axios');
+import axios from 'axios';
 
 async function testConcurrentBooking() {
   const promises = Array(10).fill(null).map(() =>
@@ -207,12 +221,12 @@ async function testConcurrentBooking() {
 
 ## Architecture Decisions
 
-- **Row-level locking** ensures no two transactions can book the same seats simultaneously
-- **Transactions** guarantee atomicity - either all operations succeed or none do
+- **Row-level locking** (SELECT FOR UPDATE) ensures no two transactions can book the same seats simultaneously
+- **PostgreSQL Transactions** guarantee atomicity - either all operations succeed or none do
 - **Indexes** on frequently queried columns improve performance
 - **Cron jobs** handle background tasks without blocking the main application
+- **Connection pooling** (pg Pool) manages database connections efficiently
 
 ## Production Considerations
 
 See `SYSTEM_DESIGN.md` for detailed scalability and production considerations.
-

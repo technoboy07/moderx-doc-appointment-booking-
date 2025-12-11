@@ -1,25 +1,41 @@
-import mongoose from 'mongoose';
+import { pool } from '../config/database.js';
 
-const doctorSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  specialization: {
-    type: String,
-    trim: true,
-    default: null
-  }
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-});
+// Doctor model functions using PostgreSQL
 
-// Index for faster queries
-doctorSchema.index({ name: 1 });
+export const createDoctor = async (name, specialization = null) => {
+  const result = await pool.query(
+    'INSERT INTO doctors (name, specialization) VALUES ($1, $2) RETURNING *',
+    [name, specialization]
+  );
+  return result.rows[0];
+};
 
-const Doctor = mongoose.model('Doctor', doctorSchema);
+export const getAllDoctors = async () => {
+  const result = await pool.query(
+    'SELECT * FROM doctors ORDER BY created_at DESC'
+  );
+  return result.rows;
+};
 
-export default Doctor;
+export const getDoctorById = async (id) => {
+  const result = await pool.query(
+    'SELECT * FROM doctors WHERE id = $1',
+    [id]
+  );
+  return result.rows[0];
+};
+
+export const findDoctorByName = async (name) => {
+  const result = await pool.query(
+    'SELECT * FROM doctors WHERE name = $1',
+    [name]
+  );
+  return result.rows[0];
+};
+
+export default {
+  createDoctor,
+  getAllDoctors,
+  getDoctorById,
+  findDoctorByName
+};

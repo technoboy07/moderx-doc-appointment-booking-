@@ -95,7 +95,7 @@ cron.schedule('*/30 * * * * *', async () => {
   }
 });
 
-// Connect to MongoDB and start server
+// Connect to PostgreSQL and start server
 const startServer = async () => {
   try {
     await connectDB();

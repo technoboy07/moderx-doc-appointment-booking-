@@ -1,22 +1,14 @@
-import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import Doctor from '../models/Doctor.js';
-import AppointmentSlot from '../models/AppointmentSlot.js';
+import { pool } from '../config/database.js';
+import * as DoctorModel from '../models/Doctor.js';
 
 dotenv.config();
 
 async function seed() {
+  const client = await pool.connect();
+  
   try {
-    // Connect to MongoDB
-    await mongoose.connect(
-      process.env.MONGODB_URI || 'mongodb://localhost:27017/doctor_appointments'
-    );
-    console.log('✅ Connected to MongoDB');
-
-    // Clear existing data (optional - comment out if you want to keep existing data)
-    // await Doctor.deleteMany({});
-    // await AppointmentSlot.deleteMany({});
-    // console.log('✅ Cleared existing data');
+    console.log('✅ Connected to PostgreSQL');
 
     // Create sample doctors
     const doctorsToCreate = [
@@ -37,10 +29,9 @@ async function seed() {
     let existingCount = 0;
 
     for (const doctorData of doctorsToCreate) {
-      let doctor = await Doctor.findOne({ name: doctorData.name });
+      let doctor = await DoctorModel.findDoctorByName(doctorData.name);
       if (!doctor) {
-        doctor = new Doctor(doctorData);
-        await doctor.save();
+        doctor = await DoctorModel.createDoctor(doctorData.name, doctorData.specialization);
         console.log(`✅ Created doctor: ${doctor.name} (${doctor.specialization})`);
         createdCount++;
       } else {
@@ -52,14 +43,13 @@ async function seed() {
     console.log(`\n📊 Summary: ${createdCount} created, ${existingCount} already existed`);
 
     console.log('✅ Database seeding completed');
-    await mongoose.connection.close();
     process.exit(0);
   } catch (error) {
     console.error('❌ Seeding failed:', error);
-    await mongoose.connection.close();
     process.exit(1);
+  } finally {
+    client.release();
   }
 }
 
 seed();
-

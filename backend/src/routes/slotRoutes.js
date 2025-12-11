@@ -24,7 +24,7 @@ const router = express.Router();
  *             properties:
  *               doctorId:
  *                 type: string
- *                 format: objectid
+ *                 type: integer
  *               startTime:
  *                 type: string
  *                 format: date-time
@@ -44,7 +44,7 @@ router.post(
   authenticateToken,
   requireAdmin,
   [
-    body('doctorId').isMongoId().withMessage('Doctor ID must be a valid MongoDB ObjectId'),
+    body('doctorId').isInt({ min: 1 }).withMessage('Doctor ID must be a valid integer'),
     body('startTime').isISO8601().withMessage('Start time must be a valid ISO 8601 date'),
     body('totalSeats').optional().isInt({ min: 1 }).withMessage('Total seats must be a positive integer')
   ],
@@ -76,7 +76,7 @@ router.get('/', getAllSlots);
  *         required: true
  *         schema:
  *           type: string
- *           format: objectid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Slot details

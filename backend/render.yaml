@@ -9,8 +9,10 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: MONGODB_URI
-        sync: false  # Set this in Render dashboard
+      - key: DATABASE_URL
+        sync: false  # Set this in Render dashboard (auto-set if using Render PostgreSQL)
+      - key: POSTGRESQL_URI
+        sync: false  # Same as DATABASE_URL for compatibility
       - key: JWT_SECRET
         sync: false  # Set this in Render dashboard
 

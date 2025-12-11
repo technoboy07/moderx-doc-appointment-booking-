@@ -1,60 +1,56 @@
-import mongoose from 'mongoose';
-import AppointmentSlot from '../models/AppointmentSlot.js';
-import Booking from '../models/Booking.js';
+import { pool } from '../config/database.js';
+import * as SlotModel from '../models/AppointmentSlot.js';
+import * as BookingModel from '../models/Booking.js';
 
 const bookAppointment = async (req, res, next) => {
-  const session = await mongoose.startSession();
+  const client = await pool.connect();
   
   try {
-    await session.startTransaction();
+    await client.query('BEGIN');
     
     const { slotId, userName, userEmail, seatsBooked } = req.body;
     const requestedSeats = seatsBooked || 1;
+    const slotIdInt = parseInt(slotId);
     
-    // Atomic operation: Find and update in one query to prevent race conditions
-    const slot = await AppointmentSlot.findOneAndUpdate(
-      { 
-        _id: slotId,
-        available_seats: { $gte: requestedSeats }, // Ensure enough seats
-        start_time: { $gt: new Date() } // Not in the past
-      },
-      { 
-        $inc: { available_seats: -requestedSeats } // Atomic decrement
-      },
-      { 
-        new: true, 
-        session,
-        runValidators: true 
-      }
-    ).populate('doctor_id', 'name specialization');
+    // Lock the slot row for update (SELECT FOR UPDATE)
+    const slot = await SlotModel.getSlotByIdForUpdate(slotIdInt, client);
     
     if (!slot) {
-      await session.abortTransaction();
-      
-      // Check if slot exists but doesn't meet conditions
-      const slotExists = await AppointmentSlot.findById(slotId).session(session);
-      if (!slotExists) {
-        return res.status(404).json({
-          success: false,
-          message: 'Slot not found'
-        });
-      }
-      
-      if (slotExists.available_seats < requestedSeats) {
-        return res.status(409).json({
-          success: false,
-          message: `Only ${slotExists.available_seats} seat(s) available, but ${requestedSeats} requested`,
-          availableSeats: slotExists.available_seats
-        });
-      }
-      
-      if (new Date(slotExists.start_time) <= new Date()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Cannot book appointments in the past'
-        });
-      }
-      
+      await client.query('ROLLBACK');
+      return res.status(404).json({
+        success: false,
+        message: 'Slot not found'
+      });
+    }
+    
+    // Check if slot is in the past
+    if (new Date(slot.start_time) <= new Date()) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot book appointments in the past'
+      });
+    }
+    
+    // Check if enough seats available
+    if (slot.available_seats < requestedSeats) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        success: false,
+        message: `Only ${slot.available_seats} seat(s) available, but ${requestedSeats} requested`,
+        availableSeats: slot.available_seats
+      });
+    }
+    
+    // Atomically decrement available seats
+    const updatedSlot = await SlotModel.decrementAvailableSeats(
+      slotIdInt,
+      requestedSeats,
+      client
+    );
+    
+    if (!updatedSlot) {
+      await client.query('ROLLBACK');
       return res.status(409).json({
         success: false,
         message: 'Not enough seats available'
@@ -65,31 +61,45 @@ const bookAppointment = async (req, res, next) => {
     const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
     
     // Create booking with CONFIRMED status
-    const booking = new Booking({
-      slot_id: slotId,
-      user_name: userName,
-      user_email: userEmail,
-      seats_booked: requestedSeats,
-      status: 'CONFIRMED',
-      expires_at: expiresAt
-    });
+    const booking = await BookingModel.createBooking(
+      slotIdInt,
+      userName,
+      userEmail.toLowerCase(),
+      requestedSeats,
+      'CONFIRMED',
+      expiresAt,
+      client
+    );
     
-    await booking.save({ session });
-    await session.commitTransaction();
+    await client.query('COMMIT');
     
-    // Populate booking with slot and doctor info
-    await booking.populate({
-      path: 'slot_id',
-      populate: { path: 'doctor_id', select: 'name specialization' }
-    });
+    // Get doctor info for response
+    const doctorResult = await pool.query(
+      `SELECT d.name, d.specialization 
+       FROM doctors d
+       INNER JOIN appointment_slots s ON d.id = s.doctor_id
+       WHERE s.id = $1`,
+      [slotIdInt]
+    );
+    
+    const doctor = doctorResult.rows[0];
     
     // Transform response to match expected format
-    const bookingObj = booking.toObject();
-    if (bookingObj.slot_id) {
-      bookingObj.start_time = bookingObj.slot_id.start_time;
-      bookingObj.doctor_id = bookingObj.slot_id.doctor_id._id;
-      bookingObj.doctor_name = bookingObj.slot_id.doctor_id.name;
-    }
+    const bookingObj = {
+      id: booking.id.toString(),
+      slot_id: booking.slot_id.toString(),
+      user_name: booking.user_name,
+      user_email: booking.user_email,
+      seats_booked: booking.seats_booked,
+      status: booking.status,
+      created_at: booking.created_at,
+      expires_at: booking.expires_at,
+      updated_at: booking.updated_at,
+      start_time: slot.start_time,
+      doctor_id: slot.doctor_id.toString(),
+      doctor_name: doctor.name,
+      specialization: doctor.specialization
+    };
     
     res.status(201).json({
       success: true,
@@ -97,9 +107,9 @@ const bookAppointment = async (req, res, next) => {
       data: bookingObj
     });
   } catch (error) {
-    await session.abortTransaction();
+    await client.query('ROLLBACK');
     
-    if (error.name === 'CastError') {
+    if (error.code === '22P02') { // Invalid input syntax
       return res.status(404).json({
         success: false,
         message: 'Slot not found'
@@ -108,32 +118,33 @@ const bookAppointment = async (req, res, next) => {
     
     next(error);
   } finally {
-    await session.endSession();
+    client.release();
   }
 };
 
 const cancelBooking = async (req, res, next) => {
-  const session = await mongoose.startSession();
+  const client = await pool.connect();
   
   try {
-    await session.startTransaction();
+    await client.query('BEGIN');
     
     const { id } = req.params;
-    const userEmail = req.user?.email; // Get email from authenticated user
+    const userEmail = req.user?.email;
+    const bookingIdInt = parseInt(id);
     
     if (!userEmail) {
-      await session.abortTransaction();
+      await client.query('ROLLBACK');
       return res.status(401).json({
         success: false,
         message: 'Authentication required'
       });
     }
     
-    // Find booking and verify it belongs to the user
-    const booking = await Booking.findById(id).session(session);
+    // Lock booking row for update
+    const booking = await BookingModel.getBookingByIdForUpdate(bookingIdInt, client);
     
     if (!booking) {
-      await session.abortTransaction();
+      await client.query('ROLLBACK');
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
@@ -141,8 +152,8 @@ const cancelBooking = async (req, res, next) => {
     }
     
     // Verify the booking belongs to the authenticated user
-    if (booking.user_email !== userEmail) {
-      await session.abortTransaction();
+    if (booking.user_email !== userEmail.toLowerCase()) {
+      await client.query('ROLLBACK');
       return res.status(403).json({
         success: false,
         message: 'You can only cancel your own bookings'
@@ -151,7 +162,7 @@ const cancelBooking = async (req, res, next) => {
     
     // Don't allow canceling already failed bookings
     if (booking.status === 'FAILED') {
-      await session.abortTransaction();
+      await client.query('ROLLBACK');
       return res.status(400).json({
         success: false,
         message: 'Cannot cancel a failed booking'
@@ -159,25 +170,25 @@ const cancelBooking = async (req, res, next) => {
     }
     
     // Release seats back to the slot atomically
-    await AppointmentSlot.findByIdAndUpdate(
+    await SlotModel.incrementAvailableSeats(
       booking.slot_id,
-      { $inc: { available_seats: booking.seats_booked } },
-      { session }
+      booking.seats_booked,
+      client
     );
     
     // Delete the booking
-    await Booking.findByIdAndDelete(id).session(session);
+    await BookingModel.deleteBooking(bookingIdInt, client);
     
-    await session.commitTransaction();
+    await client.query('COMMIT');
     
     res.json({
       success: true,
       message: 'Booking cancelled successfully'
     });
   } catch (error) {
-    await session.abortTransaction();
+    await client.query('ROLLBACK');
     
-    if (error.name === 'CastError') {
+    if (error.code === '22P02') { // Invalid input syntax
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
@@ -186,18 +197,14 @@ const cancelBooking = async (req, res, next) => {
     
     next(error);
   } finally {
-    await session.endSession();
+    client.release();
   }
 };
 
 const getBookingById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const booking = await Booking.findById(id)
-      .populate({
-        path: 'slot_id',
-        populate: { path: 'doctor_id', select: 'name specialization' }
-      });
+    const booking = await BookingModel.getBookingById(parseInt(id));
     
     if (!booking) {
       return res.status(404).json({
@@ -207,19 +214,28 @@ const getBookingById = async (req, res, next) => {
     }
     
     // Transform response to match expected format
-    const bookingObj = booking.toObject();
-    if (bookingObj.slot_id) {
-      bookingObj.start_time = bookingObj.slot_id.start_time;
-      bookingObj.doctor_id = bookingObj.slot_id.doctor_id._id;
-      bookingObj.doctor_name = bookingObj.slot_id.doctor_id.name;
-    }
+    const bookingObj = {
+      id: booking.id.toString(),
+      slot_id: booking.slot_id.toString(),
+      user_name: booking.user_name,
+      user_email: booking.user_email,
+      seats_booked: booking.seats_booked,
+      status: booking.status,
+      created_at: booking.created_at,
+      expires_at: booking.expires_at,
+      updated_at: booking.updated_at,
+      start_time: booking.start_time,
+      doctor_id: booking.doctor_id.toString(),
+      doctor_name: booking.doctor_name,
+      specialization: booking.specialization
+    };
     
     res.json({
       success: true,
       data: bookingObj
     });
   } catch (error) {
-    if (error.name === 'CastError') {
+    if (error.code === '22P02') { // Invalid input syntax
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
@@ -232,23 +248,24 @@ const getBookingById = async (req, res, next) => {
 const getBookingsBySlot = async (req, res, next) => {
   try {
     const { slotId } = req.params;
-    const bookings = await Booking.find({ slot_id: slotId })
-      .populate({
-        path: 'slot_id',
-        populate: { path: 'doctor_id', select: 'name specialization' }
-      })
-      .sort({ createdAt: -1 });
+    const bookings = await BookingModel.getBookingsBySlotId(parseInt(slotId));
     
     // Transform response
-    const transformedBookings = bookings.map(booking => {
-      const bookingObj = booking.toObject();
-      if (bookingObj.slot_id) {
-        bookingObj.start_time = bookingObj.slot_id.start_time;
-        bookingObj.doctor_id = bookingObj.slot_id.doctor_id._id;
-        bookingObj.doctor_name = bookingObj.slot_id.doctor_id.name;
-      }
-      return bookingObj;
-    });
+    const transformedBookings = bookings.map(booking => ({
+      id: booking.id.toString(),
+      slot_id: booking.slot_id.toString(),
+      user_name: booking.user_name,
+      user_email: booking.user_email,
+      seats_booked: booking.seats_booked,
+      status: booking.status,
+      created_at: booking.created_at,
+      expires_at: booking.expires_at,
+      updated_at: booking.updated_at,
+      start_time: booking.start_time,
+      doctor_id: booking.doctor_id.toString(),
+      doctor_name: booking.doctor_name,
+      specialization: booking.specialization
+    }));
     
     res.json({
       success: true,
@@ -256,7 +273,7 @@ const getBookingsBySlot = async (req, res, next) => {
       data: transformedBookings
     });
   } catch (error) {
-    if (error.name === 'CastError') {
+    if (error.code === '22P02') { // Invalid input syntax
       return res.status(404).json({
         success: false,
         message: 'Invalid slot ID'
@@ -268,8 +285,6 @@ const getBookingsBySlot = async (req, res, next) => {
 
 const getBookingsByUserEmail = async (req, res, next) => {
   try {
-    // Use authenticated user's email from token (privacy protection)
-    // Users can only view their own bookings
     const userEmail = req.user?.email;
     
     if (!userEmail) {
@@ -279,23 +294,24 @@ const getBookingsByUserEmail = async (req, res, next) => {
       });
     }
     
-    const bookings = await Booking.find({ user_email: userEmail })
-      .populate({
-        path: 'slot_id',
-        populate: { path: 'doctor_id', select: 'name specialization' }
-      })
-      .sort({ createdAt: -1 });
+    const bookings = await BookingModel.getBookingsByUserEmail(userEmail.toLowerCase());
     
     // Transform response
-    const transformedBookings = bookings.map(booking => {
-      const bookingObj = booking.toObject();
-      if (bookingObj.slot_id) {
-        bookingObj.start_time = bookingObj.slot_id.start_time;
-        bookingObj.doctor_id = bookingObj.slot_id.doctor_id._id;
-        bookingObj.doctor_name = bookingObj.slot_id.doctor_id.name;
-      }
-      return bookingObj;
-    });
+    const transformedBookings = bookings.map(booking => ({
+      id: booking.id.toString(),
+      slot_id: booking.slot_id.toString(),
+      user_name: booking.user_name,
+      user_email: booking.user_email,
+      seats_booked: booking.seats_booked,
+      status: booking.status,
+      created_at: booking.created_at,
+      expires_at: booking.expires_at,
+      updated_at: booking.updated_at,
+      start_time: booking.start_time,
+      doctor_id: booking.doctor_id.toString(),
+      doctor_name: booking.doctor_name,
+      specialization: booking.specialization
+    }));
     
     res.json({
       success: true,
@@ -309,23 +325,24 @@ const getBookingsByUserEmail = async (req, res, next) => {
 
 const getAllBookings = async (req, res, next) => {
   try {
-    const bookings = await Booking.find()
-      .populate({
-        path: 'slot_id',
-        populate: { path: 'doctor_id', select: 'name specialization' }
-      })
-      .sort({ createdAt: -1 });
+    const bookings = await BookingModel.getAllBookings();
     
     // Transform response
-    const transformedBookings = bookings.map(booking => {
-      const bookingObj = booking.toObject();
-      if (bookingObj.slot_id) {
-        bookingObj.start_time = bookingObj.slot_id.start_time;
-        bookingObj.doctor_id = bookingObj.slot_id.doctor_id._id;
-        bookingObj.doctor_name = bookingObj.slot_id.doctor_id.name;
-      }
-      return bookingObj;
-    });
+    const transformedBookings = bookings.map(booking => ({
+      id: booking.id.toString(),
+      slot_id: booking.slot_id.toString(),
+      user_name: booking.user_name,
+      user_email: booking.user_email,
+      seats_booked: booking.seats_booked,
+      status: booking.status,
+      created_at: booking.created_at,
+      expires_at: booking.expires_at,
+      updated_at: booking.updated_at,
+      start_time: booking.start_time,
+      doctor_id: booking.doctor_id.toString(),
+      doctor_name: booking.doctor_name,
+      specialization: booking.specialization
+    }));
     
     res.json({
       success: true,

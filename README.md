@@ -11,8 +11,8 @@ This is a comprehensive doctor appointment booking system that simulates the cor
 ### Backend
 - ✅ Doctor and appointment slot management
 - ✅ Concurrent booking with race condition prevention
-- ✅ Atomic operations with MongoDB transactions
-- ✅ Race condition prevention using findOneAndUpdate
+- ✅ Atomic operations with PostgreSQL transactions
+- ✅ Race condition prevention using SELECT FOR UPDATE
 - ✅ Automatic booking expiry (PENDING → FAILED after 2 minutes)
 - ✅ Comprehensive API documentation (Swagger)
 - ✅ Input validation and error handling
@@ -33,8 +33,8 @@ This is a comprehensive doctor appointment booking system that simulates the cor
 ### Backend
 - **Node.js** - Runtime environment
 - **Express.js** - Web framework
-- **MongoDB** - NoSQL database
-- **Mongoose** - MongoDB object modeling
+- **PostgreSQL** - Relational database
+- **pg** - PostgreSQL client for Node.js
 - **node-cron** - Scheduled jobs
 - **Swagger** - API documentation
 
@@ -48,10 +48,12 @@ This is a comprehensive doctor appointment booking system that simulates the cor
 ## 📋 Prerequisites
 
 - Node.js (v14 or higher)
-- MongoDB (v4.4 or higher) - Must be running as replica set for transactions
+- PostgreSQL (v12 or higher)
 - npm or yarn
 
 **Windows Users:** See [WINDOWS_SETUP.md](WINDOWS_SETUP.md) for detailed Windows-specific setup instructions.
+
+**PostgreSQL Setup:** See [POSTGRESQL_SETUP.md](POSTGRESQL_SETUP.md) for detailed PostgreSQL installation and configuration guide.
 
 ## 🚀 Quick Start
 
@@ -71,23 +73,27 @@ This is a comprehensive doctor appointment booking system that simulates the cor
    Create a `.env` file:
    ```env
    PORT=3000
-   MONGODB_URI=mongodb://localhost:27017/doctor_appointments
+   DATABASE_URL=postgresql://postgres:password@localhost:5432/doctor_appointments
+   POSTGRESQL_URI=postgresql://postgres:password@localhost:5432/doctor_appointments
    NODE_ENV=development
    ```
 
-4. **Start MongoDB**
-   Make sure MongoDB is running. For transactions, MongoDB must be a replica set.
+4. **Start PostgreSQL**
+   Make sure PostgreSQL is running on your system.
    
-   **Windows Users:** See [WINDOWS_SETUP.md](WINDOWS_SETUP.md) for detailed Windows-specific instructions.
+   **Windows Users:** 
+   - Install PostgreSQL from https://www.postgresql.org/download/windows/
+   - Start PostgreSQL service
+   - Create database: `createdb doctor_appointments`
    
    **Linux/macOS:**
    ```bash
-   # Start MongoDB with replica set
-   mongod --replSet rs0 --port 27017
+   # Start PostgreSQL service
+   sudo systemctl start postgresql  # Linux
+   brew services start postgresql   # macOS
    
-   # In another terminal, initialize replica set
-   mongosh
-   > rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})
+   # Create database
+   createdb doctor_appointments
    ```
 
 5. **Seed database (optional)**
@@ -181,10 +187,11 @@ moderx/
 
 The system uses multiple strategies to prevent overbooking:
 
-1. **Atomic Operations**: `findOneAndUpdate` with `$inc` operator ensures atomic seat decrement
-2. **MongoDB Transactions**: All booking operations are wrapped in transactions for ACID guarantees
-3. **Conditional Updates**: Seat availability is checked and updated in a single atomic operation
+1. **Row-Level Locking**: `SELECT FOR UPDATE` locks the slot row during booking
+2. **PostgreSQL Transactions**: All booking operations are wrapped in transactions for ACID guarantees
+3. **Atomic Updates**: Seat availability is checked and updated in a single atomic operation within a transaction
 4. **Query Conditions**: Only slots with sufficient available seats can be updated
+5. **Isolation Levels**: PostgreSQL's default isolation level ensures data consistency
 
 ## 📊 System Design
 

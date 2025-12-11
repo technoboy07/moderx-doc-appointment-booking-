@@ -25,7 +25,7 @@ const router = express.Router();
  *             properties:
  *               slotId:
  *                 type: string
- *                 format: objectid
+ *                 type: integer
  *               userName:
  *                 type: string
  *               userEmail:
@@ -47,7 +47,7 @@ const router = express.Router();
 router.post(
   '/',
   [
-    body('slotId').isMongoId().withMessage('Slot ID must be a valid MongoDB ObjectId'),
+    body('slotId').isInt({ min: 1 }).withMessage('Slot ID must be a valid integer'),
     body('userName').trim().notEmpty().withMessage('User name is required'),
     body('userEmail').isEmail().withMessage('Valid email is required'),
     body('seatsBooked').optional().isInt({ min: 1 }).withMessage('Seats booked must be a positive integer')
@@ -84,7 +84,7 @@ router.get('/my-bookings', authenticateToken, getBookingsByUserEmail);
  *         required: true
  *         schema:
  *           type: string
- *           format: objectid
+ *           type: integer
  *     responses:
  *       200:
  *         description: List of bookings for the slot
@@ -121,7 +121,7 @@ router.get('/', authenticateToken, requireAdmin, getAllBookings);
  *         required: true
  *         schema:
  *           type: string
- *           format: objectid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Booking details
@@ -144,7 +144,7 @@ router.get('/:id', getBookingById);
  *         required: true
  *         schema:
  *           type: string
- *           format: objectid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Booking cancelled successfully
