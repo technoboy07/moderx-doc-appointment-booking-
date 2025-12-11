@@ -18,13 +18,18 @@ if (!connectionString) {
   console.error("❌ No database connection string found! Check Environment Variables.");
 }
 
+// CHANGE THIS LINE
+// Old: const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+
+// New: Prioritize the NON_POOLING URL (Port 5432)
+const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL || process.env.DATABASE_URL;
+
 const pool = new Pool({
   connectionString,
-  // Supabase requires SSL. We allow self-signed certs (common in cloud)
   ssl: {
-    rejectUnauthorized: false 
+    rejectUnauthorized: false // We still need this!
   },
-  max: 5, // Limit connections for serverless
+  max: 5, // Keep low for direct connections
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
