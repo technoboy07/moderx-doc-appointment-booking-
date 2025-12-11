@@ -11,53 +11,53 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Create connection pool
+// Vercel Postgres sets 'POSTGRES_URL' automatically.
+// We also keep DATABASE_URL as a fallback.
+const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || process.env.POSTGRESQL_URI,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 20, // Maximum number of clients in the pool
+  connectionString,
+  ssl: { rejectUnauthorized: false }, // Required for Vercel Postgres
+  max: 5, // Reduce max connections for Serverless (prevents exhaustion)
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
 });
 
-// Test connection
-pool.on('connect', () => {
-  console.log('✅ PostgreSQL pool connected');
-});
+// Global variable to cache the pool in development (prevents hot-reload connection leaks)
+let isConnected = false;
 
-pool.on('error', (err) => {
-  console.error('❌ Unexpected error on idle PostgreSQL client', err);
-  process.exit(-1);
-});
-
-// Connect to database and initialize schema
 const connectDB = async () => {
+  if (isConnected) return pool;
+
   try {
-    // Test connection
     const client = await pool.connect();
     console.log('✅ PostgreSQL Connected');
-    
-    // Initialize schema if tables don't exist
+
+    // Initialize Schema (Only if running for the first time or needing updates)
+    // Note: In serverless, reading files every request is slow. 
+    // Ideally, run schema migrations separately, but this works for now.
     try {
-      const schemaPath = path.join(__dirname, '../database/schema.sql');
-      const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
+      // Adjusted path to look for schema.sql
+      const schemaPath = path.join(__dirname, '../schema.sql');
       
-      await client.query(schemaSQL);
-      console.log('✅ Database schema initialized');
-    } catch (schemaError) {
-      // Schema might already exist, that's okay
-      if (schemaError.code !== '42P07') { // 42P07 = relation already exists
-        console.log('ℹ️  Schema initialization skipped:', schemaError.message);
+      if (fs.existsSync(schemaPath)) {
+        const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
+        await client.query(schemaSQL);
+        console.log('✅ Database schema checked/initialized');
       } else {
-        console.log('ℹ️  Schema already exists');
+        console.warn('⚠️ Schema file not found at:', schemaPath);
       }
+    } catch (schemaError) {
+      console.error('ℹ️ Schema init warning:', schemaError.message);
     }
-    
+
     client.release();
+    isConnected = true;
     return pool;
   } catch (error) {
     console.error('❌ PostgreSQL connection error:', error);
-    process.exit(1);
+    // Do not exit process in serverless, just throw
+    throw error;
   }
 };
 
